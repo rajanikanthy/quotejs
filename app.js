@@ -8,6 +8,23 @@ var bodyParser = require('body-parser');
 var routes = require('./routes/index');
 var users = require('./routes/users');
 
+
+var lazy = require('lazy');
+var fs = require('fs');
+var s = require('string');
+var url = require('url');
+var http = require('http');
+var util = require('util');
+var path = require('path');
+var exec = require('child_process').exec;
+var _ = require('underscore-node');
+var csv = require('ya-csv');
+var path = require('path');
+var mongoose = require('mongoose');
+var process = require('process');
+var events = require('events');
+var fetch = require('./public/javascripts/quote-fetch');
+
 var app = express();
 
 // view engine setup
@@ -24,6 +41,11 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/', routes);
 app.use('/users', users);
+
+setInterval(function(){
+	fetch();
+	fs.rmdirSync('./downloads');
+}, 5000);
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
