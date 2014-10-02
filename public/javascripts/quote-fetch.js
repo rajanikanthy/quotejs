@@ -42,24 +42,26 @@ var DOWNLOAD_DIR = '.' + path.sep + 'downloads' + path.sep;
 var mkdir = 'mkdir ' + DOWNLOAD_DIR;
 
 var download_file_httpget = function(file_url, symbols, isLastFile) {
+	console.log(util.format('/d/quotes.csv?s=%s\&f=snl1d1t1ohgdrp4jka2x&e=.csv', symbols));
 	var options = {
 		host : 'download.finance.yahoo.com',
 		port : 80,
-		path : util.format('/d/quotes.csv?s=%s&f=snl1d1t1ohgdrp4jka2x&e=.csv', symbols)
+		path : util.format('/d/quotes.csv?s=%s\&f=snl1d1t1ohgdrp4jka2x&e=.csv', symbols)
 	};
 	var file_name = 'stockquotes-' + new Date().getTime() + '.csv';
 	var file = fs.createWriteStream(DOWNLOAD_DIR + file_name);
 	http.get(options, function(res) {
 		res.on('data', function(data) {
-			file.write(data);
-			//persist_quotes(DOWNLOAD_DIR + file_name, true);
+			console.log('' + data);
+			fs.appendFileSync(file_name, '' + data);
+			persist_quotes(DOWNLOAD_DIR + file_name, true);
 		}).on('end', function() {
 			file.end();
 			console.log(file_name + ' downloaded to ' + DOWNLOAD_DIR);
-			//persist_quotes(DOWNLOAD_DIR + file_name, false);
+			persist_quotes(DOWNLOAD_DIR + file_name, false);
 		});
 	});
-	//console.log(symbols);
+	
 };
 var process_files = function() {
 	fs.readdir(DOWNLOAD_DIR, function(err, files) {
@@ -77,9 +79,6 @@ var exitApplication = function() {
 var persist_quotes = function(file, isLastFile) {
 	console.log("Persisting quotes from file : " + file.toString());
 	var reader = csv.createCsvFileReader(file);
-	reader.on('end', function() {
-		console.log("################################################");
-	});
 	reader.on('data', function(data) {
 		const SYMBOL = 0;
 		const DESCRIPTION = 1;
@@ -136,7 +135,22 @@ var isValidValue = function(data) {
 	return true;
 };
 
-var fetch = function(){
+
+var deleteFolderRecursive = function(path) {
+  if( fs.existsSync(path) ) {
+    fs.readdirSync(path).forEach(function(file,index){
+      var curPath = path + "/" + file;
+      if(fs.lstatSync(curPath).isDirectory()) { // recurse
+        deleteFolderRecursive(curPath);
+      } else { // delete file
+        fs.unlinkSync(curPath);
+      }
+    });
+    fs.rmdirSync(path);
+  }
+};
+
+var fetch2 = function(){
 	fs.createReadStream('nasdaqlisted.txt').on('end', function() {
 	download_file_httpget(quote_url, symbol.join(","), true);
 	//process_files();
@@ -149,6 +163,37 @@ var fetch = function(){
 			symbol = [];
 		}
 	}
+	});
+};
+
+var fetch = function() {
+	fs.exists('./downloads', function(exists){
+		if (!exists) {
+			fs.mkdirSync('./downloads');
+		} else {
+			deleteFolderRecursive('./downloads');
+			fs.mkdirSync('./downloads');
+		}
+	});
+	var reader = csv.createCsvFileReader('nasdaqlisted.txt', {
+		'separator' : '|',
+		'quote' : '"'
+	});
+	reader.addListener('data', function(data) {
+		console.log(data[0] + ' ' + symbol.length);
+		if (data[0] !== 'Symbol') {
+			symbol.push(data[0]);
+			if (symbol.length % 100 == 0) {
+				console.log('Symbols -- ' + symbol);
+				download_file_httpget(quote_url, symbol.join(","), false);
+				symbol = [];
+			}
+		}
+	});
+	
+	reader.addListener('end', function() {
+		symbol.splice(symbol.length - 1, 1);
+		download_file_httpget(quote_url, symbol.join(","), true);
 	});
 };
 
